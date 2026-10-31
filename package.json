@@ -1,0 +1,14 @@
+{
+  "name": "nosso-app",
+  "version": "1.0.0",
+  "description": "Relay de chat, arquivos e sinalização WebRTC para um Discord P2P de até 4 pessoas.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "socket.io": "^4.8.1"
+  }
+}

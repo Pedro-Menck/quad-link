@@ -9,7 +9,7 @@ npm install
 npm start
 ```
 
-O processo escuta na porta **3000**. O front entra em `public/` e passa a ser servido na raiz.
+O processo escuta na porta **3000**. Abra [http://localhost:3000](http://localhost:3000): a sala pede um nome e entra no chat. Voz, câmera e tela usam o navegador (`getUserMedia` / `getDisplayMedia`) e seguem em P2P.
 
 ## HTTP
 
@@ -38,15 +38,17 @@ Conecte no mesmo host, porta 3000.
 | `chat` | `{ name, text }` | `chat` → `{ name, text }` (todos, inclusive quem enviou) |
 | `typing` | `{ name }` | `typing` → `{ name }` |
 | `stop-typing` | `{ name }` | `stop-typing` → `{ name }` |
-| `status` | `{ status }` | `status` → `{ name, status }` (`in-voice`, `sharing-screen`, …) |
-| `offer` | `{ to, sdp }` | `offer` → `sdp`, só no socket `to` |
-| `answer` | `{ to, sdp }` | `answer` → `sdp`, só no socket `to` |
-| `ice` | `{ to, candidate }` | `ice` → `candidate`, só no socket `to` |
-| `join` | `{ room }` | `user-joined` → `socket.id` de quem entrou |
-| `leave` | `{ room }` | `user-left` |
+| `status` | `{ status }` | `status` → `{ id, name, status }` (`in-voice`, `muted`, `sharing-screen`, `online`) |
+| `offer` | `{ to, sdp }` | `offer` → `{ from, sdp }`, só no socket `to` |
+| `answer` | `{ to, sdp }` | `answer` → `{ from, sdp }`, só no socket `to` |
+| `ice` | `{ to, candidate }` | `ice` → `{ from, candidate }`, só no socket `to` |
+| `join` | `{ room, name }` | quem entra recebe `room-members` (`[{ id, name }]`). Os outros recebem `user-joined` → `{ id, name }` |
+| `leave` | `{ room }` | `user-left` → `{ id }` |
 
-Ao desconectar, todo mundo recebe `user-left`.
+A sala aceita no máximo 4 sockets. O quinto recebe `room-full`.
+
+Ao desconectar, todo mundo recebe `user-left` com `{ id }`. O `from` na sinalização é o `socket.id` de quem enviou, para a malha P2P saber a quem responder.
 
 O `name` do `status` é o último nome visto em `chat`, `typing` ou `stop-typing` naquela conexão. Se o payload de `status` também trouxer `name`, esse valor é usado.
 
-Voz, câmera e tela ficam no front: `getUserMedia` para microfone e câmera, `getDisplayMedia` para a tela, e `RTCPeerConnection` para o P2P. O `to` de `offer` / `answer` / `ice` é o `socket.id` recebido em `user-joined`.
+Voz, câmera e tela ficam no front: `getUserMedia` para microfone e câmera, `getDisplayMedia` para a tela, e `RTCPeerConnection` para o P2P. O `to` de `offer` / `answer` / `ice` é o `id` recebido em `user-joined` ou `room-members`.

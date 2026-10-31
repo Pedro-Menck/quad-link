@@ -9,6 +9,7 @@ const { Server } = require('socket.io');
 
 const PORT = 3000;
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_ROOM = 4;
 const publicDir = path.join(__dirname, 'public');
 const uploadsDir = path.join(__dirname, 'uploads');
 
@@ -21,8 +22,20 @@ const io = new Server(server);
 
 function rememberName(socket, name) {
   if (typeof name === 'string' && name.trim()) {
-    socket.data.name = name;
+    socket.data.name = name.trim().slice(0, 32);
   }
+}
+
+function roomMembers(roomName, exceptId) {
+  const room = io.sockets.adapter.rooms.get(roomName);
+  const members = [];
+  if (!room) return members;
+  for (const id of room) {
+    if (id === exceptId) continue;
+    const other = io.sockets.sockets.get(id);
+    members.push({ id, name: other?.data?.name || null });
+  }
+  return members;
 }
 
 // Navegadores mandam o nome do arquivo em UTF-8. O multipart trata o
@@ -124,6 +137,7 @@ io.on('connection', (socket) => {
     if (!payload || typeof payload !== 'object') return;
     rememberName(socket, payload.name);
     socket.broadcast.emit('status', {
+      id: socket.id,
       name: socket.data.name ?? null,
       status: payload.status,
     });
@@ -131,34 +145,52 @@ io.on('connection', (socket) => {
 
   socket.on('offer', (payload) => {
     if (!payload || typeof payload !== 'object' || !payload.to) return;
-    socket.to(payload.to).emit('offer', payload.sdp);
+    socket.to(payload.to).emit('offer', { from: socket.id, sdp: payload.sdp });
   });
 
   socket.on('answer', (payload) => {
     if (!payload || typeof payload !== 'object' || !payload.to) return;
-    socket.to(payload.to).emit('answer', payload.sdp);
+    socket.to(payload.to).emit('answer', { from: socket.id, sdp: payload.sdp });
   });
 
   socket.on('ice', (payload) => {
     if (!payload || typeof payload !== 'object' || !payload.to) return;
-    socket.to(payload.to).emit('ice', payload.candidate);
+    socket.to(payload.to).emit('ice', { from: socket.id, candidate: payload.candidate });
   });
 
-  socket.on('join', (payload) => {
+  socket.on('join', async (payload) => {
     if (!payload || typeof payload !== 'object' || !payload.room) return;
-    socket.join(payload.room);
-    socket.to(payload.room).emit('user-joined', socket.id);
+    const roomName = String(payload.room).trim().slice(0, 64);
+    if (!roomName) return;
+    rememberName(socket, payload.name);
+
+    const current = io.sockets.adapter.rooms.get(roomName);
+    const alreadyIn = current?.has(socket.id);
+    if (current && current.size >= MAX_ROOM && !alreadyIn) {
+      socket.emit('room-full', { room: roomName, limit: MAX_ROOM });
+      return;
+    }
+
+    socket.data.room = roomName;
+    await socket.join(roomName);
+    socket.emit('room-members', roomMembers(roomName, socket.id));
+    socket.to(roomName).emit('user-joined', {
+      id: socket.id,
+      name: socket.data.name || null,
+    });
   });
 
-  socket.on('leave', (payload) => {
+  socket.on('leave', async (payload) => {
     if (!payload || typeof payload !== 'object' || !payload.room) return;
-    socket.leave(payload.room);
-    socket.to(payload.room).emit('user-left');
+    const roomName = String(payload.room).trim().slice(0, 64);
+    await socket.leave(roomName);
+    if (socket.data.room === roomName) socket.data.room = null;
+    socket.to(roomName).emit('user-left', { id: socket.id });
   });
 
   socket.on('disconnect', () => {
     console.log('Desconexão:', socket.id);
-    io.emit('user-left');
+    io.emit('user-left', { id: socket.id });
   });
 });
 

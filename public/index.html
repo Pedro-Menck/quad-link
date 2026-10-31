@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c0e14">
+  <title>Quad Link</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23110f18' width='32' height='32' rx='8'/%3E%3Ccircle cx='11' cy='11' r='3.2' fill='%23c4b5fd'/%3E%3Ccircle cx='21' cy='11' r='3.2' fill='%238b9bff'/%3E%3Ccircle cx='11' cy='21' r='3.2' fill='%238b9bff'/%3E%3Ccircle cx='21' cy='21' r='3.2' fill='%23f0c674'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <section id="gate" class="gate">
+    <form id="gate-form" class="gate-card">
+      <div class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <p class="eyebrow">Sala para quatro</p>
+      <h1>Quad Link</h1>
+      <p class="lede">O servidor só entrega mensagem e sinal. Voz, câmera e tela seguem direto de um navegador para o outro.</p>
+      <label>
+        Seu nome
+        <input id="name" name="name" maxlength="32" autocomplete="nickname" required placeholder="Ana">
+      </label>
+      <label>
+        Sala
+        <input id="room" name="room" maxlength="32" autocomplete="off" value="geral" required>
+      </label>
+      <p id="gate-error" class="form-error" role="alert"></p>
+      <button class="primary" type="submit">Entrar na sala</button>
+    </form>
+  </section>
+
+  <div id="shell" class="shell" hidden>
+    <header class="topbar">
+      <button id="members-toggle" class="ghost icon-btn" type="button" aria-expanded="false" aria-controls="members">
+        <span class="mark mini" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+        <span class="sr-only">Pessoas na sala</span>
+      </button>
+      <div class="room-title">
+        <span id="conn" class="conn" data-state="wait">conectando</span>
+        <h1 id="room-label">geral</h1>
+      </div>
+      <p id="occupancy" class="occupancy">1/4</p>
+      <button id="leave-room" class="ghost" type="button">Sair</button>
+    </header>
+
+    <aside id="members" class="members">
+      <div class="members-head">
+        <h2>Na sala</h2>
+        <button id="members-close" class="ghost icon-btn" type="button" aria-label="Fechar lista">×</button>
+      </div>
+      <ul id="member-list"></ul>
+      <p class="members-note">Até quatro pessoas. Quem entra na voz conversa em P2P.</p>
+    </aside>
+
+    <main class="room">
+      <p id="banner" class="banner" hidden></p>
+      <section id="stage" class="stage" hidden>
+        <div class="stage-bar">
+          <h2>Chamada</h2>
+          <p id="stage-hint"></p>
+        </div>
+        <div id="tiles" class="tiles"></div>
+      </section>
+
+      <section class="chat" aria-label="Conversa">
+        <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions"></div>
+        <p id="empty" class="empty">Nenhuma mensagem ainda. A sala está aberta.</p>
+        <p id="typing" class="typing" hidden></p>
+        <form id="composer" class="composer">
+          <label class="file-btn">
+            <input id="file" type="file">
+            <span>Arquivo</span>
+          </label>
+          <label class="grow">
+            <span class="sr-only">Mensagem</span>
+            <textarea id="text" rows="1" maxlength="2000" placeholder="Mensagem para a sala"></textarea>
+          </label>
+          <button class="primary send" type="submit">Enviar</button>
+        </form>
+      </section>
+    </main>
+
+    <footer class="dock">
+      <button id="voice" class="primary" type="button">Entrar na voz</button>
+      <div id="call-controls" class="call-controls" hidden>
+        <button id="mic" class="ctrl" type="button" aria-pressed="true">Microfone</button>
+        <button id="cam" class="ctrl" type="button" aria-pressed="false">Câmera</button>
+        <button id="screen" class="ctrl" type="button" aria-pressed="false">Tela</button>
+        <button id="hangup" class="ctrl danger" type="button">Sair da voz</button>
+      </div>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="audio-sink" hidden></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

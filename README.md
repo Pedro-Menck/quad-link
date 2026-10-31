@@ -9,7 +9,9 @@ npm install
 npm start
 ```
 
-O processo escuta na porta **3000**. Abra [http://localhost:3000](http://localhost:3000): a sala pede um nome e entra no chat. Voz, câmera e tela usam o navegador (`getUserMedia` / `getDisplayMedia`) e seguem em P2P.
+O processo escuta na porta **3000**, em todas as interfaces. Abra [http://localhost:3000](http://localhost:3000), entre com o seu nome e copie o convite. Cada amigo abre esse link no próprio aparelho e entra com o próprio nome. A sala mostra só quem conectou. Voz, câmera e tela usam o navegador (`getUserMedia` / `getDisplayMedia`) e seguem em P2P.
+
+Na mesma rede, o convite usa o IP local (por exemplo `http://192.168.0.10:3000/?sala=mesa7k`). Mensagens, digitação e arquivos ficam só naquela sala.
 
 ## HTTP
 
@@ -35,7 +37,7 @@ Conecte no mesmo host, porta 3000.
 
 | Evento enviado | Payload | O que os outros recebem |
 | --- | --- | --- |
-| `chat` | `{ name, text }` | `chat` → `{ name, text }` (todos, inclusive quem enviou) |
+| `chat` | `{ name, text }` | `chat` → `{ id, name, text }` na mesma sala, inclusive quem enviou |
 | `typing` | `{ name }` | `typing` → `{ name }` |
 | `stop-typing` | `{ name }` | `stop-typing` → `{ name }` |
 | `status` | `{ status }` | `status` → `{ id, name, status }` (`in-voice`, `muted`, `sharing-screen`, `online`) |
@@ -47,7 +49,7 @@ Conecte no mesmo host, porta 3000.
 
 A sala aceita no máximo 4 sockets. O quinto recebe `room-full`.
 
-Ao desconectar, todo mundo recebe `user-left` com `{ id }`. O `from` na sinalização é o `socket.id` de quem enviou, para a malha P2P saber a quem responder.
+Ao desconectar, a sala recebe `user-left` com `{ id }`. Chat, digitação, status e arquivo ficam nessa sala. O `from` na sinalização é o `socket.id` de quem enviou, para a malha P2P saber a quem responder.
 
 O `name` do `status` é o último nome visto em `chat`, `typing` ou `stop-typing` naquela conexão. Se o payload de `status` também trouxer `name`, esse valor é usado.
 

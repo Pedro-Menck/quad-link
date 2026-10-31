@@ -17,17 +17,20 @@
       <div class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
       <p class="eyebrow">Sala para quatro</p>
       <h1>Quad Link</h1>
-      <p class="lede">O servidor só entrega mensagem e sinal. Voz, câmera e tela seguem direto de um navegador para o outro.</p>
+      <p class="lede">Uma sala para até quatro pessoas de verdade. Cada amigo abre o mesmo link, no próprio celular ou computador, e entra com o próprio nome.</p>
       <label>
         Seu nome
-        <input id="name" name="name" maxlength="32" autocomplete="nickname" required placeholder="Ana">
+        <input id="name" name="name" maxlength="32" autocomplete="nickname" required placeholder="Seu nome">
       </label>
       <label>
-        Sala
-        <input id="room" name="room" maxlength="32" autocomplete="off" value="geral" required>
+        Código da sala
+        <input id="room" name="room" maxlength="32" autocomplete="off" required placeholder="ex.: mesa7k">
       </label>
       <p id="gate-error" class="form-error" role="alert"></p>
-      <button class="primary" type="submit">Entrar na sala</button>
+      <div class="gate-actions">
+        <button class="primary" type="submit">Entrar com os amigos</button>
+        <button id="new-room" class="ghost" type="button">Gerar uma sala nova</button>
+      </div>
     </form>
   </section>
 
@@ -51,10 +54,15 @@
         <button id="members-close" class="ghost icon-btn" type="button" aria-label="Fechar lista">×</button>
       </div>
       <ul id="member-list"></ul>
-      <p class="members-note">Até quatro pessoas. Quem entra na voz conversa em P2P.</p>
+      <p class="members-note">Só aparece quem conectou de verdade, cada um no próprio aparelho.</p>
     </aside>
 
     <main class="room">
+      <div class="invite">
+        <p id="invite-text">Manda o link. Quem abrir entra com o próprio nome.</p>
+        <code id="invite-url"></code>
+        <button id="copy-invite" class="primary" type="button">Copiar convite</button>
+      </div>
       <p id="banner" class="banner" hidden></p>
       <section id="stage" class="stage" hidden>
         <div class="stage-bar">
@@ -66,7 +74,7 @@
 
       <section class="chat" aria-label="Conversa">
         <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions"></div>
-        <p id="empty" class="empty">Nenhuma mensagem ainda. A sala está aberta.</p>
+        <p id="empty" class="empty">Nenhuma mensagem ainda. Quando um amigo entrar, o nome dele aparece aqui.</p>
         <p id="typing" class="typing" hidden></p>
         <form id="composer" class="composer">
           <label class="file-btn">

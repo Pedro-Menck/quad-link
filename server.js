@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
@@ -64,6 +65,17 @@ const upload = multer({
 
 app.use(express.static(publicDir));
 
+app.get('/api/access', (_req, res) => {
+  const ips = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const net of list || []) {
+      const v4 = net.family === 'IPv4' || net.family === 4;
+      if (v4 && !net.internal) ips.push(net.address);
+    }
+  }
+  res.json({ port: PORT, ips });
+});
+
 app.get('/uploads/:filename', (req, res) => {
   const filename = path.basename(req.params.filename);
   const filePath = path.resolve(uploadsDir, filename);
@@ -104,7 +116,8 @@ app.post('/upload', (req, res) => {
     console.log(
       `Upload de arquivo: ${payload.originalName} (${payload.size} bytes) -> ${payload.filename}`
     );
-    io.emit('file-shared', payload);
+    const roomName = typeof req.body.room === 'string' ? req.body.room.trim().slice(0, 64) : '';
+    if (roomName) io.to(roomName).emit('file-shared', { ...payload, room: roomName });
     res.json(payload);
   });
 });
@@ -116,27 +129,28 @@ io.on('connection', (socket) => {
     if (!payload || typeof payload !== 'object') return;
     const { name, text } = payload;
     rememberName(socket, name);
-    io.emit('chat', { name, text });
+    if (!socket.data.room) return;
+    io.to(socket.data.room).emit('chat', { id: socket.id, name, text });
   });
 
   socket.on('typing', (payload) => {
-    if (!payload || typeof payload !== 'object') return;
+    if (!payload || typeof payload !== 'object' || !socket.data.room) return;
     const { name } = payload;
     rememberName(socket, name);
-    socket.broadcast.emit('typing', { name });
+    socket.to(socket.data.room).emit('typing', { name });
   });
 
   socket.on('stop-typing', (payload) => {
-    if (!payload || typeof payload !== 'object') return;
+    if (!payload || typeof payload !== 'object' || !socket.data.room) return;
     const { name } = payload;
     rememberName(socket, name);
-    socket.broadcast.emit('stop-typing', { name });
+    socket.to(socket.data.room).emit('stop-typing', { name });
   });
 
   socket.on('status', (payload) => {
-    if (!payload || typeof payload !== 'object') return;
+    if (!payload || typeof payload !== 'object' || !socket.data.room) return;
     rememberName(socket, payload.name);
-    socket.broadcast.emit('status', {
+    socket.to(socket.data.room).emit('status', {
       id: socket.id,
       name: socket.data.name ?? null,
       status: payload.status,
@@ -188,12 +202,16 @@ io.on('connection', (socket) => {
     socket.to(roomName).emit('user-left', { id: socket.id });
   });
 
+  socket.on('disconnecting', () => {
+    const roomName = socket.data.room;
+    if (roomName) socket.to(roomName).emit('user-left', { id: socket.id });
+  });
+
   socket.on('disconnect', () => {
     console.log('Desconexão:', socket.id);
-    io.emit('user-left', { id: socket.id });
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor na porta ${PORT}`);
 });

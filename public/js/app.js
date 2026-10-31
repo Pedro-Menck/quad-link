@@ -32,6 +32,10 @@ const hangupBtn = document.querySelector('#hangup');
 const membersToggle = document.querySelector('#members-toggle');
 const membersClose = document.querySelector('#members-close');
 const leaveRoomBtn = document.querySelector('#leave-room');
+const newRoomBtn = document.querySelector('#new-room');
+const copyInviteBtn = document.querySelector('#copy-invite');
+const inviteText = document.querySelector('#invite-text');
+const inviteUrl = document.querySelector('#invite-url');
 
 const state = {
   name: '',
@@ -49,11 +53,16 @@ const state = {
   remote: new Map(),
   typing: new Map(),
   seenFiles: new Set(),
+  announcedHere: false,
+  friendOrigin: '',
 };
 
 const saved = readSaved();
+const invitedRoom = new URLSearchParams(location.search).get('sala');
 if (saved.name) nameInput.value = saved.name;
-if (saved.room) roomInput.value = saved.room;
+if (invitedRoom) roomInput.value = invitedRoom.slice(0, 32);
+else if (saved.room) roomInput.value = saved.room;
+else roomInput.value = freshCode();
 
 const socket = io({ transports: ['websocket', 'polling'] });
 
@@ -68,6 +77,7 @@ socket.on('disconnect', () => {
   banner.hidden = false;
   banner.textContent = 'Conexão perdida. Tentando de novo…';
   state.joinedAs = null;
+  state.announcedHere = false;
   closeAllPeers();
   state.members.clear();
   renderMembers();
@@ -80,8 +90,17 @@ socket.on('room-full', () => {
 });
 
 socket.on('room-members', (members) => {
+  const present = [];
   state.members.clear();
-  for (const member of members || []) rememberMember(member);
+  for (const member of members || []) {
+    rememberMember(member);
+    if (member?.name) present.push(member.name);
+  }
+  if (!state.announcedHere) {
+    state.announcedHere = true;
+    if (!present.length) appendSystem('Sala aberta. Quem usar o convite entra com o próprio nome.');
+    else appendSystem(`${present.join(', ')} já ${present.length > 1 ? 'estão' : 'está'} aqui.`);
+  }
   renderMembers();
   if (state.inVoice || state.screenOn) publish();
   renderStage();
@@ -90,7 +109,9 @@ socket.on('room-members', (members) => {
 socket.on('user-joined', (payload) => {
   const member = typeof payload === 'string' ? { id: payload, name: null } : payload;
   if (!member?.id || member.id === socket.id) return;
+  const isNew = !state.members.has(member.id);
   rememberMember(member);
+  if (isNew) appendSystem(`${member.name || 'Alguém'} entrou.`);
   renderMembers();
   if (state.inVoice || state.screenOn) publish();
   renderStage();
@@ -98,9 +119,11 @@ socket.on('user-joined', (payload) => {
 
 socket.on('user-left', (payload) => {
   const id = typeof payload === 'string' ? payload : payload?.id;
-  if (!id || !state.members.has(id)) return;
+  const member = id && state.members.get(id);
+  if (!member) return;
   state.members.delete(id);
   closePeer(id);
+  appendSystem(`${member.name} saiu.`);
   renderMembers();
   renderStage();
 });
@@ -108,9 +131,9 @@ socket.on('user-left', (payload) => {
 socket.on('chat', (payload) => {
   if (!payload || typeof payload.text !== 'string') return;
   appendMessage({
-    name: payload.name || 'Anônimo',
+    name: payload.name || 'Alguém',
     text: payload.text,
-    mine: payload.name === state.name,
+    mine: payload.id === socket.id,
   });
 });
 
@@ -154,13 +177,26 @@ gateForm.addEventListener('submit', (event) => {
   state.room = room.slice(0, 32);
   state.entered = true;
   state.joinedAs = null;
+  state.announcedHere = false;
   localStorage.setItem('quadlink', JSON.stringify({ name: state.name, room: state.room }));
+  const nextUrl = new URL(location.href);
+  nextUrl.searchParams.set('sala', state.room);
+  history.replaceState(null, '', nextUrl);
   gateError.textContent = '';
   roomLabel.textContent = state.room;
   showShell();
   announceJoin();
+  refreshInvite();
   textInput.focus();
 });
+
+newRoomBtn.addEventListener('click', () => {
+  roomInput.value = freshCode();
+  gateError.textContent = '';
+  nameInput.focus();
+});
+
+copyInviteBtn.addEventListener('click', () => copyInvite());
 
 composer.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -235,6 +271,7 @@ async function uploadFile(file) {
     return;
   }
   const body = new FormData();
+  body.append('room', state.room);
   body.append('file', file);
   fileInput.disabled = true;
   try {
@@ -285,6 +322,14 @@ function appendFile(file) {
   stickLog(article);
 }
 
+function appendSystem(text) {
+  empty.hidden = true;
+  const line = document.createElement('p');
+  line.className = 'system';
+  line.textContent = text;
+  stickLog(line);
+}
+
 function stickLog(node) {
   const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
   log.append(node);
@@ -325,7 +370,12 @@ function renderMembers() {
   memberList.replaceChildren();
   memberList.append(memberRow({ name: state.name, status: localStatus(), self: true }));
   for (const member of state.members.values()) memberList.append(memberRow(member));
-  occupancy.textContent = `${state.members.size + 1}/4`;
+  const total = state.members.size + 1;
+  occupancy.textContent = `${total}/4`;
+  const openSeats = 4 - total;
+  if (openSeats <= 0) inviteText.textContent = 'Os quatro estão nesta sala.';
+  else if (openSeats === 1) inviteText.textContent = 'Falta 1 amigo. Manda o link — ele entra com o próprio nome.';
+  else inviteText.textContent = `Faltam ${openSeats} amigos. Manda o link — cada um entra com o próprio nome.`;
 }
 
 function memberRow(member) {
@@ -536,6 +586,7 @@ function exitRoom() {
   state.members.clear();
   state.entered = false;
   state.joinedAs = null;
+  state.announcedHere = false;
   log.replaceChildren();
   empty.hidden = false;
   setMembersOpen(false);
@@ -858,6 +909,52 @@ function initial(name) {
 
 function domId(key) {
   return `media-${key.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+}
+
+async function refreshInvite() {
+  const origin = await friendOrigin();
+  const link = `${origin}/?sala=${encodeURIComponent(state.room)}`;
+  inviteUrl.textContent = link;
+  copyInviteBtn.dataset.link = link;
+}
+
+async function friendOrigin() {
+  if (state.friendOrigin) return state.friendOrigin;
+  const host = location.hostname;
+  const local = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+  if (!local) {
+    state.friendOrigin = location.origin;
+    return state.friendOrigin;
+  }
+  try {
+    const info = await fetch('/api/access').then((response) => response.json());
+    if (info.ips && info.ips[0]) {
+      const port = location.port || info.port || '3000';
+      state.friendOrigin = `http://${info.ips[0]}:${port}`;
+      return state.friendOrigin;
+    }
+  } catch {
+    /* segue no endereço desta aba */
+  }
+  state.friendOrigin = location.origin;
+  return state.friendOrigin;
+}
+
+async function copyInvite() {
+  const link = copyInviteBtn.dataset.link || inviteUrl.textContent;
+  try {
+    await navigator.clipboard.writeText(link);
+    toast('Convite copiado. Manda para os amigos.');
+  } catch {
+    toast(link);
+  }
+}
+
+function freshCode() {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let code = '';
+  for (let i = 0; i < 6; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
 }
 
 function readSaved() {

@@ -212,6 +212,6 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen({ port: PORT, host: '::', ipv6Only: false }, () => {
   console.log(`Servidor na porta ${PORT}`);
 });
